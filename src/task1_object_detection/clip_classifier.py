@@ -1,7 +1,7 @@
 """CLIP-based zero-shot classification for region proposals."""
 
 import torch
-import clip
+import open_clip
 import cv2
 import numpy as np
 from PIL import Image
@@ -11,21 +11,23 @@ import time
 class CLIPClassifier:
     """Zero-shot object classifier using CLIP."""
     
-    def __init__(self, model_name: str = "ViT-B/32", confidence_threshold: float = 0.1):
+    def __init__(self, model_name: str = "ViT-B-32", confidence_threshold: float = 0.1):
         """
         Initialize CLIP classifier.
         
         Args:
-            model_name: CLIP model variant to use
+            model_name: CLIP model variant to use (open-clip format)
             confidence_threshold: Minimum confidence for positive classification
         """
         self.model_name = model_name
         self.confidence_threshold = confidence_threshold
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         
-        # Load CLIP model
+        # Load CLIP model using open-clip
         print(f"Loading CLIP model {model_name} on {self.device}...")
-        self.model, self.preprocess = clip.load(model_name, device=self.device)
+        self.model, _, self.preprocess = open_clip.create_model_and_transforms(
+            model_name, pretrained='openai', device=self.device)
+        self.tokenizer = open_clip.get_tokenizer(model_name)
         self.model.eval()
         
         print(f"CLIP model loaded successfully!")
@@ -113,7 +115,7 @@ class CLIPClassifier:
         """Prepare text prompts for CLIP processing."""
         # Add "a photo of" prefix to improve performance
         formatted_prompts = [f"a photo of a {prompt}" for prompt in text_prompts]
-        text_inputs = clip.tokenize(formatted_prompts).to(self.device)
+        text_inputs = self.tokenizer(formatted_prompts).to(self.device)
         return text_inputs
     
     def _extract_region(self, image: np.ndarray, x: int, y: int, w: int, h: int) -> Optional[np.ndarray]:

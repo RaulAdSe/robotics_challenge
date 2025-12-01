@@ -12,42 +12,46 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 class TestCLIPClassifier:
     """Test cases for CLIP classifier."""
     
-    @patch('task1_object_detection.clip_classifier.clip')
+    @patch('task1_object_detection.clip_classifier.open_clip')
     @patch('task1_object_detection.clip_classifier.torch')
-    def test_init(self, mock_torch, mock_clip):
+    def test_init(self, mock_torch, mock_open_clip):
         """Test CLIP classifier initialization."""
         # Mock the CLIP model loading
         mock_model = Mock()
         mock_preprocess = Mock()
-        mock_clip.load.return_value = (mock_model, mock_preprocess)
+        mock_tokenizer = Mock()
+        mock_open_clip.create_model_and_transforms.return_value = (mock_model, None, mock_preprocess)
+        mock_open_clip.get_tokenizer.return_value = mock_tokenizer
         mock_torch.cuda.is_available.return_value = False
         
         from task1_object_detection.clip_classifier import CLIPClassifier
         
         classifier = CLIPClassifier()
         
-        assert classifier.model_name == "ViT-B/32"
+        assert classifier.model_name == "ViT-B-32"
         assert classifier.confidence_threshold == 0.1
         assert classifier.device == "cpu"
-        mock_clip.load.assert_called_once_with("ViT-B/32", device="cpu")
+        mock_open_clip.create_model_and_transforms.assert_called_once_with("ViT-B-32", pretrained='openai', device="cpu")
     
-    @patch('task1_object_detection.clip_classifier.clip')
+    @patch('task1_object_detection.clip_classifier.open_clip')
     @patch('task1_object_detection.clip_classifier.torch')
-    def test_custom_params(self, mock_torch, mock_clip):
+    def test_custom_params(self, mock_torch, mock_open_clip):
         """Test initialization with custom parameters."""
         mock_model = Mock()
         mock_preprocess = Mock()
-        mock_clip.load.return_value = (mock_model, mock_preprocess)
+        mock_tokenizer = Mock()
+        mock_open_clip.create_model_and_transforms.return_value = (mock_model, None, mock_preprocess)
+        mock_open_clip.get_tokenizer.return_value = mock_tokenizer
         mock_torch.cuda.is_available.return_value = True
         
         from task1_object_detection.clip_classifier import CLIPClassifier
         
         classifier = CLIPClassifier(
-            model_name="ViT-L/14", 
+            model_name="ViT-L-14", 
             confidence_threshold=0.25
         )
         
-        assert classifier.model_name == "ViT-L/14"
+        assert classifier.model_name == "ViT-L-14"
         assert classifier.confidence_threshold == 0.25
         assert classifier.device == "cuda"
     
@@ -87,16 +91,16 @@ class TestCLIPClassifier:
         classifier = Mock(spec=CLIPClassifier)
         classifier._prepare_text_prompts = CLIPClassifier._prepare_text_prompts.__get__(classifier)
         
-        # Mock the clip.tokenize function
-        with patch('task1_object_detection.clip_classifier.clip.tokenize') as mock_tokenize:
-            mock_tokenize.return_value = Mock()
-            mock_tokenize.return_value.to = Mock(return_value="mocked_tensor")
+        # Mock the tokenizer
+        with patch.object(classifier, 'tokenizer') as mock_tokenizer:
+            mock_tokenizer.return_value = Mock()
+            mock_tokenizer.return_value.to = Mock(return_value="mocked_tensor")
             classifier.device = "cpu"
             
             result = classifier._prepare_text_prompts(["cat", "dog"])
             
             # Verify that prompts were formatted correctly
-            expected_calls = mock_tokenize.call_args[0][0]
+            expected_calls = mock_tokenizer.call_args[0][0]
             assert "a photo of a cat" in expected_calls
             assert "a photo of a dog" in expected_calls
     

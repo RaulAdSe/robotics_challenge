@@ -60,7 +60,7 @@ pip install -e .
 - `opencv-python>=4.8.0` - Computer vision operations
 - `opencv-contrib-python>=4.8.0` - Additional OpenCV modules (Selective Search)
 - `torch>=2.0.0` - PyTorch for CLIP
-- `clip-by-openai` - CLIP model for zero-shot classification
+- `open-clip-torch>=2.20.0` - Modern CLIP implementation for zero-shot classification
 - `pillow>=9.0.0` - Image processing
 - `numpy>=1.24.0` - Numerical operations
 - `matplotlib>=3.7.0` - Visualization
