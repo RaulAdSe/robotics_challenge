@@ -1,7 +1,64 @@
 """Non-Maximum Suppression implementation for object detection."""
 
 import numpy as np
-from typing import List, Tuple
+from typing import List, Tuple, Optional
+from dataclasses import dataclass
+
+
+@dataclass
+class NMSConfig:
+    """Configuration for Non-Maximum Suppression."""
+    iou_threshold: float = 0.5
+    confidence_threshold: float = 0.1
+    max_detections: int = 100
+
+
+class NonMaximumSuppression:
+    """Class-based NMS for compatibility with OWL-ViT detector."""
+
+    def __init__(self, config: NMSConfig):
+        self.config = config
+
+    def filter_proposals(self, proposals: List) -> List:
+        """
+        Apply NMS to a list of proposals.
+
+        Args:
+            proposals: List of objects with x, y, w, h, confidence attributes
+
+        Returns:
+            Filtered list of proposals
+        """
+        if not proposals:
+            return []
+
+        # Convert to format expected by non_max_suppression
+        detections = []
+        for prop in proposals:
+            detections.append((prop.x, prop.y, prop.w, prop.h,
+                             getattr(prop, 'method', 'unknown'),
+                             prop.confidence))
+
+        # Apply NMS
+        filtered = non_max_suppression(
+            detections,
+            iou_threshold=self.config.iou_threshold,
+            score_threshold=self.config.confidence_threshold
+        )
+
+        # Limit to max detections
+        filtered = filtered[:self.config.max_detections]
+
+        # Map back to original proposals
+        result = []
+        for det in filtered:
+            for prop in proposals:
+                if (prop.x == det[0] and prop.y == det[1] and
+                    prop.w == det[2] and prop.h == det[3]):
+                    result.append(prop)
+                    break
+
+        return result
 
 def calculate_iou(box1: Tuple[int, int, int, int], 
                   box2: Tuple[int, int, int, int]) -> float:

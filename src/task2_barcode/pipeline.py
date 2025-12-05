@@ -42,16 +42,23 @@ class BarcodeAnalysisPipeline:
         
         print("Barcode analysis pipeline initialized!")
     
-    def analyze_barcode(self, 
+    def analyze_barcode(self,
                        image: np.ndarray,
+                       object_detections: Optional[List[Dict]] = None,
+                       object_names: str = "all",
                        debug: bool = False) -> Tuple[List[Dict], Dict]:
         """
         Complete barcode analysis: detection, decoding, and 3D pose estimation.
-        
+
         Args:
             image: Input image (BGR format)
+            object_detections: Optional list of object detections from Task 1.
+                Each detection should have 'name' and 'bbox' (x, y, w, h).
+                If provided, barcode detection is constrained to these regions.
+            object_names: "all" or list of object names to process.
+                Only used when object_detections is provided.
             debug: Whether to include debug information
-            
+
         Returns:
             Tuple of (barcode_results, pipeline_debug_info)
             - barcode_results: List of analysis results for each detected barcode
@@ -62,46 +69,75 @@ class BarcodeAnalysisPipeline:
             "timings": {},
             "detection_count": 0,
             "successful_decodings": 0,
-            "successful_pose_estimations": 0
+            "successful_pose_estimations": 0,
+            "object_constrained": object_detections is not None
         }
-        
+
         # Step 1: Detect barcode regions
         print("Detecting barcode regions...")
         start_time = time.time()
-        
-        barcode_regions, detection_debug = self.detector.detect_barcodes(image, debug=debug)
+
+        if object_detections is not None:
+            # Object-constrained detection (integrate with Task 1)
+            print(f"  Using {len(object_detections)} object regions from Task 1")
+            barcode_detections = self.detector.detect_in_object_regions(
+                image, object_detections, object_names=object_names, one_barcode_per_object=False
+            )
+            detection_debug = {"mode": "object_constrained", "object_count": len(object_detections)}
+        else:
+            # Full image detection
+            barcode_detections, detection_debug = self.detector.detect_barcodes(image, debug=debug)
+
         pipeline_debug["timings"]["detection"] = time.time() - start_time
-        pipeline_debug["detection_count"] = len(barcode_regions)
-        
+        pipeline_debug["detection_count"] = len(barcode_detections)
+
         if debug:
             pipeline_debug["detection_debug"] = detection_debug
-        
-        print(f"Found {len(barcode_regions)} potential barcode regions")
-        
-        if not barcode_regions:
+
+        print(f"Found {len(barcode_detections)} potential barcode regions")
+
+        if not barcode_detections:
             print("No barcode regions detected!")
             return [], pipeline_debug
+
+        # Convert detection format if needed (new format returns dicts, old format returns arrays)
+        barcode_regions = []
+        for det in barcode_detections:
+            if isinstance(det, dict):
+                barcode_regions.append(det)
+            else:
+                # Legacy format - convert to dict
+                barcode_regions.append({'box': det, 'center': tuple(np.mean(det, axis=0))})
         
         # Step 2: Process each detected region
         barcode_results = []
-        
-        for i, region_corners in enumerate(barcode_regions):
+
+        for i, detection in enumerate(barcode_regions):
             print(f"Processing barcode region {i+1}/{len(barcode_regions)}...")
-            
+
+            # Extract corners from detection dict or use directly if array
+            if isinstance(detection, dict):
+                region_corners = np.array(detection['box'])
+                object_name = detection.get('object_name', None)
+            else:
+                region_corners = detection
+                object_name = None
+
             region_result = {
                 "id": i,
                 "corners": region_corners.tolist(),
+                "object_name": object_name,
                 "decoded_text": None,
                 "normal_vector": None,
                 "confidence_scores": {},
                 "debug_info": {}
             }
-            
+
             try:
                 # Extract and rectify barcode region
                 start_time = time.time()
                 rectified_barcode = self.detector.extract_barcode_region(
-                    image, region_corners, output_size=(300, 100))
+                    image, detection, output_size=(300, 100))
                 
                 region_result["debug_info"]["rectification_time"] = time.time() - start_time
                 

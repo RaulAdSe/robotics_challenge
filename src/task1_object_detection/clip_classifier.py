@@ -6,7 +6,21 @@ import cv2
 import numpy as np
 from PIL import Image
 from typing import List, Tuple, Optional, Dict
+from dataclasses import dataclass
 import time
+
+
+@dataclass
+class CLIPDetection:
+    """Detection result from CLIP-based classification."""
+    x: int
+    y: int
+    w: int
+    h: int
+    label: str
+    confidence: float
+    clip_similarity: float = 0.0
+    original_proposal: Optional[any] = None
 
 class CLIPClassifier:
     """Zero-shot object classifier using CLIP."""
